@@ -1,70 +1,64 @@
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import ru.company.controller.MessageController;
+import ru.company.models.Message;
+import ru.company.services.MessageService;
+import ru.company.utils.exceptions.MessageCalculatedException;
 
-@SpringBootTest(classes = ru.company.Main.class)
-@ExtendWith(SpringExtension.class)
-@AutoConfigureMockMvc
-public class StringControllerTest {
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-    @Autowired
-    private MockMvc mockMvc;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+
+@ExtendWith(MockitoExtension.class)
+class StringControllerTest {
+
+    @Mock
+    MessageService messageService;
+
+    @InjectMocks
+    MessageController messageController;
+
+    @Mock
+    BindingResult bindingResult;
 
     @Test
-    public void testFrequencyInString() throws Exception {
-        String input = "aaaaabcccc";
+    void frequencyInStringTest() {
+        final String inputString = "aaaaabcccc";
+        final Message message = new Message(inputString);
 
-        mockMvc.perform(MockMvcRequestBuilders.get("/frequency")
-                        .param("str", input))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.a").value(5))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.c").value(4))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.b").value(1));
+        when(messageService.calculateSymbols(message)).thenReturn(Map.of('a', 5, 'c', 4, 'b', 1));
+
+        final Map<Character, Integer> result = messageController.frequencyInString(message, bindingResult);
+
+        Map<Character, Integer> expectedResult = new LinkedHashMap<>();
+        expectedResult.put('a', 5);
+        expectedResult.put('c', 4);
+        expectedResult.put('b', 1);
+
+        assertEquals(result, expectedResult);
     }
+
     @Test
-    public void testFrequencyInStringWithoutNum() throws Exception {
-        String input = "1a2a3a4a5a6b7c8c9c0c";
+    void frequencyInStringWithLengthLimitTest() {
+        final String inputString = "aaaaabccccaaaaabccccaaaaabcccc";
+        final Message message = new Message(inputString);
 
-        mockMvc.perform(MockMvcRequestBuilders.get("/frequency")
-                        .param("str", input))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.a").value(5))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.c").value(4))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.b").value(1));
+        when(bindingResult.hasErrors()).thenReturn(true);
+        when(bindingResult.getFieldErrors()).thenReturn(Collections.singletonList(
+                new FieldError("message", "Size", "Size should be <25 symbols")));
+
+        assertThrows(MessageCalculatedException.class, () ->
+            messageController.frequencyInString(message, bindingResult));
+
+        verify(messageService, never()).calculateSymbols(message);
     }
-    @Test
-    public void testFrequencyInStringNull() throws Exception {
-        String input = "";
-
-        mockMvc.perform(MockMvcRequestBuilders.get("/frequency")
-                        .param("str", input))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.content().json("{}"));
-    }
-    @Test
-    public void testFrequencyInStringSymbol() throws Exception {
-        String input = "!@&*_+=-";
-
-        mockMvc.perform(MockMvcRequestBuilders.get("/frequency")
-                        .param("str", input))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.!").value(1))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.@").value(1));
-    }
-    @Test
-    public void testFrequencyInStringNum() throws Exception {
-        String input = "111222333";
-
-        mockMvc.perform(MockMvcRequestBuilders.get("/frequency")
-                        .param("str", input))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.content().json("{}"));
-    }
-
 }
